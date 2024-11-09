@@ -1,5 +1,6 @@
 "use client";
-import { useState, ChangeEvent, FormEvent } from "react";
+import { useState, FormEvent } from "react";
+import { useRouter } from "next/navigation";
 
 interface Pregunta {
   id: number;
@@ -10,7 +11,7 @@ interface Pregunta {
 
 const preguntas: Pregunta[] = [
   {
-    id: 1,
+    id: 0,
     pregunta: "Orientación Solar",
     descripcion:
       "Evalúa la orientación de la propiedad en relación con el sol, lo que afecta la iluminación natural y el confort térmico.",
@@ -23,46 +24,46 @@ const preguntas: Pregunta[] = [
     ],
   },
   {
-    id: 2,
+    id: 1,
     pregunta: "Calidad de Materiales",
     descripcion:
       "Evalúa la durabilidad, eficiencia energética, y sostenibilidad de los materiales utilizados en la construcción.",
     opciones: [
-      "Uso de materiales de alta calidad, sostenibles y de larga durabilidad. (como madera certificada (FSC), bambú, y ladrillos de tierra comprimida, que no solo son renovables, sino que también tienen un ciclo de vida con baja huella de carbono. Además, se considera el uso de materiales reciclados o reciclables, como acero y vidrio reciclados).",
-      "Materiales buenos, pero con algunas limitaciones en sostenibilidad o durabilidad. (paneles de yeso reciclado, hormigón con aditivos reciclados, y pinturas con bajo contenido de COV (Compuestos Orgánicos Volátiles).",
-      "Materiales estándar que cumplen con las normativas mínimas. (ladrillo estándar y hormigón convencional).",
-      "Materiales de calidad inferior, con posibles problemas de durabilidad. (plásticos tradicionales y ciertos tipos de cemento de alto consumo energético).",
-      "Materiales de mala calidad, que podrían necesitar reemplazo o reparación. (altos costos ambientales, difícil reciclaje, y alto impacto en la huella de carbono, como PVC y otros plásticos no reciclables).",
+      "Uso de materiales de alta calidad, sostenibles y de larga durabilidad.",
+      "Materiales buenos, pero con algunas limitaciones en sostenibilidad o durabilidad.",
+      "Materiales estándar que cumplen con las normativas mínimas.",
+      "Materiales de calidad inferior, con posibles problemas de durabilidad.",
+      "Materiales de mala calidad, que podrían necesitar reemplazo o reparación.",
     ],
   },
   {
-    id: 3,
+    id: 2,
     pregunta: "Instalaciones Eléctricas",
     descripcion:
       "Verifica la seguridad, eficiencia y capacidad de las instalaciones eléctricas.",
     opciones: [
-      "Sistema eléctrico moderno, eficiente, con buena capacidad y cumplimiento de todas las normativas de seguridad.(cableado de alta eficiencia, integración de sistemas de energía renovable (como paneles solares), y uso de dispositivos de bajo consumo energético (certificados ENERGY STAR, por ejemplo). La instalación incluye sistemas de automatización y gestión de energía, como medidores inteligentes, que optimizan el consumo y reducen la carga eléctrica. También, debe contar con protecciones avanzadas, como disyuntores con diferencial y sistemas de supresión de sobretensiones).",
-      "Instalaciones en buen estado, con pequeñas limitaciones en capacidad o eficiencia. (cableado moderno y suficiente capacidad para la demanda actual y futura, pero con una integración limitada de energías renovables. Incluye protecciones adecuadas y dispositivos de eficiencia media-alta).",
+      "Sistema eléctrico moderno y eficiente, con buena capacidad y cumplimiento de todas las normativas.",
+      "Instalaciones en buen estado, con pequeñas limitaciones en capacidad o eficiencia.",
       "Instalaciones aceptables, pero con riesgo de necesitar actualización.",
       "Sistema antiguo o con problemas menores de seguridad o capacidad.",
       "Instalaciones deficientes que representan un riesgo significativo.",
     ],
   },
   {
-    id: 4,
+    id: 3,
     pregunta: "Medidas Estandarizadas y Espacios",
     descripcion:
       "Evaluación de si los espacios cumplen con los estándares modernos de comodidad y funcionalidad.",
     opciones: [
       "Medidas amplias y bien distribuidas, con buena funcionalidad de los espacios.",
       "Espacios adecuados, con ligeras limitaciones en distribución.",
-      "Medidas estándar, aceptables, pero con limitaciones en comodidad. ",
+      "Medidas estándar, aceptables, pero con limitaciones en comodidad.",
       "Espacios reducidos o mal distribuidos.",
       "Medidas inadecuadas que dificultan la habitabilidad.",
     ],
   },
   {
-    id: 5,
+    id: 4,
     pregunta: "Ventilación y Circulación del Aire",
     descripcion:
       "Evaluación de la calidad del aire y la ventilación natural de la propiedad.",
@@ -75,7 +76,7 @@ const preguntas: Pregunta[] = [
     ],
   },
   {
-    id: 6,
+    id: 5,
     pregunta: "Eficiencia Energética",
     descripcion:
       "Medida de la capacidad de la propiedad para conservar energía y minimizar los costos energéticos.",
@@ -89,16 +90,27 @@ const preguntas: Pregunta[] = [
   },
 ];
 
-export default function Home() {
+export default function Formulario() {
   const [indice, setIndice] = useState<number>(0);
   const [respuestas, setRespuestas] = useState<Record<number, number>>({});
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleChange = (opcionIndex: number) => {
-    setRespuestas({ ...respuestas, [indice]: opcionIndex });
+    const updatedRespuestas = { ...respuestas, [indice]: opcionIndex };
+    setRespuestas(updatedRespuestas);
+    setError(null); // Limpiar el mensaje de error si el usuario selecciona una respuesta
+    localStorage.setItem("respuestas", JSON.stringify(updatedRespuestas));
   };
 
   const siguientePregunta = () => {
-    if (indice < preguntas.length - 1) setIndice(indice + 1);
+    // Verificar si se ha respondido la pregunta actual
+    if (respuestas[indice] === undefined) {
+      setError("Por favor, selecciona una respuesta antes de continuar.");
+    } else {
+      setIndice(indice + 1);
+      setError(null); // Limpiar el mensaje de error al avanzar
+    }
   };
 
   const anteriorPregunta = () => {
@@ -107,21 +119,24 @@ export default function Home() {
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log("Respuestas:", respuestas);
+
+    // Confirmar que `localStorage` tiene la última respuesta y luego redirigir
+    localStorage.setItem("respuestas", JSON.stringify(respuestas));
+    router.push("/resultado");
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-100">
+    <div className="h-screen flex items-center justify-center bg-gray-100 text-black">
       <div className="bg-white p-8 rounded-lg shadow-lg w-11/12">
-        <h1 className="text-xl font-semibold mb-4">
+        <h1 className="text-xl font-semibold mb-4 text-black">
           Pregunta {indice + 1} de {preguntas.length}
         </h1>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <p className="block text-gray-700 mb-2 text-3xl font-semibold">
+            <p className="block text-black mb-2 text-3xl font-semibold">
               {preguntas[indice].pregunta}
             </p>
-            <p className="block text-gray-700 mb-2 text-xl border-b border-gray-200 pb-2">
+            <p className="block text-black mb-2 text-xl border-b border-gray-200 pb-2">
               {preguntas[indice].descripcion}
             </p>
             {preguntas[indice].opciones.map((opcion, idx) => (
@@ -136,11 +151,13 @@ export default function Home() {
                     className="form-radio text-blue-500"
                     required
                   />
-                  <span className="ml-2">{opcion}</span>
+                  <span className="ml-2 text-black">{opcion}</span>
                 </label>
               </div>
             ))}
           </div>
+
+          {error && <p className="text-red-500 mb-4">{error}</p>}
 
           <div className="flex justify-between">
             <button
