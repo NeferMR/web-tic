@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useChat } from "ai/react"; // Usamos el hook de `useChat`
 
 interface Pregunta {
   id: number;
@@ -22,12 +23,24 @@ const preguntas: Pregunta[] = [
   {
     id: 2,
     pregunta: "Instalaciones Eléctricas",
-    opciones: ["Moderno y eficiente", "Buen estado", "Aceptable", "Antiguo", "Deficiente"],
+    opciones: [
+      "Moderno y eficiente",
+      "Buen estado",
+      "Aceptable",
+      "Antiguo",
+      "Deficiente",
+    ],
   },
   {
     id: 3,
     pregunta: "Medidas Estandarizadas y Espacios",
-    opciones: ["Amplias y funcionales", "Adecuadas", "Estándar", "Reducidas", "Inadecuadas"],
+    opciones: [
+      "Amplias y funcionales",
+      "Adecuadas",
+      "Estándar",
+      "Reducidas",
+      "Inadecuadas",
+    ],
   },
   {
     id: 4,
@@ -45,14 +58,24 @@ export default function ResultadoPage() {
   const [respuestas, setRespuestas] = useState<Record<number, number>>({});
   const [promedio, setPromedio] = useState<number>(0);
   const [calificacion, setCalificacion] = useState<string>("");
-  const [calificacionColor, setCalificacionColor] = useState<string>("text-black");
+  const [calificacionColor, setCalificacionColor] =
+    useState<string>("text-black");
+  const [chatResponse, setChatResponse] = useState<string>(""); // Para almacenar la respuesta del chatbot
   const router = useRouter();
+
+  // Configuración del chat
+  const { messages, input, handleInputChange, handleSubmit, isLoading, stop } =
+    useChat({
+      api: "/api/chat", // Cambiar a la ruta de tu API del chatbot
+    });
 
   useEffect(() => {
     const storedRespuestas = localStorage.getItem("respuestas");
     if (storedRespuestas) {
-      const parsedRespuestas: Record<number, number> = JSON.parse(storedRespuestas);
+      const parsedRespuestas: Record<number, number> =
+        JSON.parse(storedRespuestas);
       setRespuestas(parsedRespuestas);
+      console.log(parsedRespuestas);
 
       // Calcular el promedio de las respuestas seleccionadas
       const totalRespuestas = Object.values(parsedRespuestas).reduce(
@@ -67,10 +90,36 @@ export default function ResultadoPage() {
       const { letra, color } = obtenerCalificacion(promedioCalculado);
       setCalificacion(letra);
       setCalificacionColor(color);
+
+      // Crear el texto para enviar al chatbot
+      const respuestasTexto = Object.values(parsedRespuestas)
+        .map((respuesta, index) => {
+          return `${preguntas[index].pregunta}: ${preguntas[index].opciones[respuesta]}`;
+        })
+        .join(", ");
+
+      // Enviar las respuestas al chatbot
+      sendToChatbot(respuestasTexto);
     }
   }, []);
 
-  const obtenerCalificacion = (promedio: number): { letra: string; color: string } => {
+  // Enviar al chatbot usando la estructura de useChat
+  const sendToChatbot = async (respuestasTexto: string) => {
+    try {
+      const response = await handleSubmit(
+        `Las calificaciones fueron: ${respuestasTexto}. Proporcióname un análisis de estos resultados.`
+      );
+      if (response) {
+        setChatResponse(response.text); // Guardamos la respuesta del chatbot
+      }
+    } catch (error) {
+      console.error("Error al obtener la respuesta del chatbot:", error);
+    }
+  };
+
+  const obtenerCalificacion = (
+    promedio: number
+  ): { letra: string; color: string } => {
     if (promedio >= 4) return { letra: "A", color: "text-green-500" };
     if (promedio >= 3) return { letra: "B", color: "text-lime-500" };
     if (promedio >= 2) return { letra: "C", color: "text-yellow-500" };
@@ -104,7 +153,9 @@ export default function ResultadoPage() {
         </div>
 
         {/* Mostrar calificación con color */}
-        <p className={`text-center mt-2 text-xl font-bold ${calificacionColor}`}>
+        <p
+          className={`text-center mt-2 text-xl font-bold ${calificacionColor}`}
+        >
           Calificación: {calificacion}
         </p>
       </div>
@@ -117,6 +168,13 @@ export default function ResultadoPage() {
             <p className="text-black">Respuesta: {getResultado(pregunta.id)}</p>
           </div>
         ))}
+      </div>
+
+      {/* Cuadro de respuesta del chatbot */}
+
+      <div className="mt-6 bg-white p-6 rounded-lg shadow-lg w-full max-w-lg border border-gray-200">
+        <h2 className="text-lg font-semibold mb-2">Análisis del Chatbot</h2>
+        <p className="text-black">{chatResponse}</p>
       </div>
 
       {/* Botones para volver al formulario o al inicio */}
