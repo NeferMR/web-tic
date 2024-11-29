@@ -1,7 +1,8 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useChat } from "ai/react"; // Usamos el hook de `useChat`
+import Markdown from "react-markdown";
 
 interface Pregunta {
   id: number;
@@ -60,14 +61,8 @@ export default function ResultadoPage() {
   const [calificacion, setCalificacion] = useState<string>("");
   const [calificacionColor, setCalificacionColor] =
     useState<string>("text-black");
-  const [chatResponse, setChatResponse] = useState<string>(""); // Para almacenar la respuesta del chatbot
+  const [chatMessages, setChatMessages] = useState<string[]>([]);
   const router = useRouter();
-
-  // Configuración del chat
-  const { messages, input, handleInputChange, handleSubmit, isLoading, stop } =
-    useChat({
-      api: "/api/chat", // Cambiar a la ruta de tu API del chatbot
-    });
 
   useEffect(() => {
     const storedRespuestas = localStorage.getItem("respuestas");
@@ -75,47 +70,76 @@ export default function ResultadoPage() {
       const parsedRespuestas: Record<number, number> =
         JSON.parse(storedRespuestas);
       setRespuestas(parsedRespuestas);
-      console.log(parsedRespuestas);
 
-      // Calcular el promedio de las respuestas seleccionadas
       const totalRespuestas = Object.values(parsedRespuestas).reduce(
-        (acc: number, val: number) => acc + (5 - val), // Invertir el valor
+        (acc: number, val: number) => acc + (5 - val),
         0
       );
-      const numPreguntas = Object.keys(parsedRespuestas).length;
-      const promedioCalculado = totalRespuestas / numPreguntas;
+      const promedioCalculado =
+        totalRespuestas / Object.keys(parsedRespuestas).length;
       setPromedio(promedioCalculado);
 
-      // Convertir el promedio en una calificación de letra y color
       const { letra, color } = obtenerCalificacion(promedioCalculado);
       setCalificacion(letra);
       setCalificacionColor(color);
 
-      // Crear el texto para enviar al chatbot
       const respuestasTexto = Object.values(parsedRespuestas)
         .map((respuesta, index) => {
           return `${preguntas[index].pregunta}: ${preguntas[index].opciones[respuesta]}`;
         })
         .join(", ");
-
-      // Enviar las respuestas al chatbot
-      sendToChatbot(respuestasTexto);
+      obtenerAnalisisDelBot(respuestasTexto);
     }
   }, []);
 
-  // Enviar al chatbot usando la estructura de useChat
-  const sendToChatbot = async (respuestasTexto: string) => {
+  const obtenerAnalisisDelBot = async (respuestasTexto: string) => {
     try {
-      const response = await handleSubmit(
-        `Las calificaciones fueron: ${respuestasTexto}. Proporcióname un análisis de estos resultados.`
-      );
-      if (response) {
-        setChatResponse(response.text); // Guardamos la respuesta del chatbot
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: "system", content: "Eres un asistente útil que analiza propiedades,  damela salida de texto sin formato." },
+            {
+              role: "user",
+              content: `Las calificaciones fueron: ${respuestasTexto}. Proporcióname un análisis detallado de los resultados en texto plano, damela salida de texto sin formato.`,
+            },
+          ],
+        }),
+      });
+  
+      if (!response.ok) {
+        console.error("Error en la respuesta del servidor:", await response.text());
+        setChatMessages(["Hubo un problema al procesar la solicitud."]);
+        return;
       }
+  
+      const contentType = response.headers.get("Content-Type") || "";
+      let rawText = "";
+  
+      if (contentType.includes("application/json")) {
+        const data = await response.json();
+        rawText = data.text || "No se pudo obtener un análisis del chatbot.";
+      } else {
+        rawText = await response.text();
+      }
+  
+      // Limpiar y formatear la respuesta
+      const cleanedText = rawText
+        .split("\n") // Dividir en líneas
+        .filter((line) => line.trim() !== "") // Eliminar líneas vacías
+        .join("\n"); // Unir nuevamente en un bloque de texto
+  
+      setChatMessages([cleanedText]); // Guardar en el estado
     } catch (error) {
-      console.error("Error al obtener la respuesta del chatbot:", error);
+      console.error("Error al enviar los datos al chatbot:", error);
+      setChatMessages(["Ocurrió un error al conectar con el chatbot."]);
     }
   };
+  
+  
 
   const obtenerCalificacion = (
     promedio: number
@@ -138,46 +162,53 @@ export default function ResultadoPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 text-black p-4">
-      <h1 className="text-3xl font-semibold mb-4">Análisis de Resultados</h1>
+      <h1 className="text-3xl font-semibold mb-4 text-center">
+        Análisis de Resultados
+      </h1>
 
-      <div className="w-full max-w-lg mb-6">
-        {/* Barra de colores */}
+      <div className="w-full max-w-lg mb-6 text-center">
         <div className="relative h-8 rounded-full overflow-hidden bg-gradient-to-r from-red-500 via-yellow-500 to-green-500">
           <div
             className="absolute top-0 h-full w-1"
             style={{
-              left: `${(promedio - 1) * 25}%`, // Ajustar la posición del marcador
+              left: `${(promedio - 1) * 25}%`,
               backgroundColor: "black",
             }}
           ></div>
         </div>
-
-        {/* Mostrar calificación con color */}
-        <p
-          className={`text-center mt-2 text-xl font-bold ${calificacionColor}`}
-        >
+        <p className={`text-center mt-2 text-xl font-bold ${calificacionColor}`}>
           Calificación: {calificacion}
         </p>
       </div>
 
-      {/* Detalle de respuestas */}
       <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg">
         {preguntas.map((pregunta) => (
-          <div key={pregunta.id} className="mb-4 border-b border-gray-200 pb-2">
+          <div
+            key={pregunta.id}
+            className="mb-4 border-b border-gray-200 pb-2 text-center"
+          >
             <h2 className="text-lg font-semibold mb-1">{pregunta.pregunta}</h2>
             <p className="text-black">Respuesta: {getResultado(pregunta.id)}</p>
           </div>
         ))}
       </div>
 
-      {/* Cuadro de respuesta del chatbot */}
+      <div className="mt-6 bg-gray-100 p-6 rounded-lg shadow-lg w-full max-w-lg">
+  <h2 className="text-xl font-semibold mb-4 text-center">Análisis del Chatbot</h2>
+  <div className="bg-white p-4 rounded-lg shadow-lg overflow-y-auto max-h-96">
+    {chatMessages.length === 0 ? (
+      <p className="text-center text-gray-500">Cargando análisis...</p>
+    ) : (
+      chatMessages.map((message, index) => (
+        <div key={index} className="mb-4">
+          <Markdown className="prose text-black">{message}</Markdown>
+        </div>
+      ))
+    )}
+  </div>
+</div>
 
-      <div className="mt-6 bg-white p-6 rounded-lg shadow-lg w-full max-w-lg border border-gray-200">
-        <h2 className="text-lg font-semibold mb-2">Análisis del Chatbot</h2>
-        <p className="text-black">{chatResponse}</p>
-      </div>
 
-      {/* Botones para volver al formulario o al inicio */}
       <div className="mt-6 flex space-x-4">
         <button
           onClick={() => router.push("/formulario")}
